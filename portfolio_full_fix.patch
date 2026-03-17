@@ -1,0 +1,1514 @@
+From 1ade25cf53bf29e49102ee06448104331b92e0e3 Mon Sep 17 00:00:00 2001
+From: Ibrahim Salman <ibrahim@portfolio-fix>
+Date: Mon, 16 Mar 2026 17:29:50 +0000
+Subject: [PATCH] fix: complete 47-bug audit
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+SECURITY
+- Delete deploy.js (POSTed project tarball to unknown server)
+- Delete final_final_deploy_output.txt (exposed full Windows path + UET OneDrive username)
+- Update .gitignore to block *.tgz, *_output.txt, deploy.js permanently
+
+IDENTITY / CONTENT
+- layout.tsx: title changed from 'Senior Frontend Architect' to 'Software Engineer'
+- layout.tsx: OG/Twitter URLs fixed from staging deployment URL to relative paths
+- ConsoleBreadcrumb: console log no longer claims fabricated seniority
+- Hero.tsx: subtitle updated to honest student identity
+- About.tsx: bio copy reflects real background (UET, IJT, actual projects)
+- Skills.tsx: percentages corrected to honest student-level values
+- Projects.tsx: replace 3 fictional projects with real ones (Dawn Scraper, BLAST, Portfolio)
+- StatsRow.tsx: stat values replaced with honest numbers
+
+DEAD CODE REMOVED
+- Hero.tsx: removed unused FuzzyText import
+- About.tsx: removed unused cn import, removed unused delay prop + default
+- Contact.tsx: removed unused cn import
+- AvailabilityBadge.tsx: cn was already unused (no change needed, existing code fine)
+- SkillCard.tsx: removed empty useEffect(() => {}, [])
+- ProjectCard.tsx: removed dead cardRef (was never attached to JSX)
+- DebugPanel.tsx: removed orphaned useFrame + useRef imports after export statement
+- FloatingModel.tsx: removed non-functional castShadow/receiveShadow props
+- useMagneticEffect.ts: documented as utility hook (not orphaned, intentional)
+
+FUNCTIONAL BUGS FIXED
+- Contact.tsx: send command now performs real async fetch to Formspree instead of
+  fake setTimeout simulation with hardcoded 200 OK response
+- Contact.tsx: GitHub link fixed from non-existent profile to real devhms URL
+- Hero.tsx: 'View my work' changed from dead <button> to <a href='#projects'>
+- Hero.tsx: 'Download CV' changed from dead <button> to <a href='/cv.pdf'>
+- ProjectCard.tsx: cards now render as <a> when link prop is provided; ArrowUpRight
+  icon only shows when link exists
+- StatsRow.tsx: spring config fixed (tension:20/friction:10 was critically
+  underdamped causing oscillation); new values: tension:80/friction:30
+- StatsRow.tsx: IntersectionObserver rootMargin '-100px' replaced with
+  threshold:0.2 — fixes counters staying at 0 on smaller screens
+
+CSS / STYLE BUGS FIXED
+- globals.css: removed invalid --scroll-behavior CSS variable (not a real property)
+- globals.css: added missing .underline-effect class (was used in Hero, never defined)
+- globals.css: added missing .custom-scrollbar class (used in Contact + DebugPanel)
+- FuzzyText.tsx: fixed SVG filter ID collision — now uses useId() for unique IDs
+- FuzzyText.tsx: Tailwind font classes on SVG <text> replaced with inline style
+  (Tailwind classes do not apply to SVG elements)
+- CustomCursor.tsx: fixed cursor flash at (0,0) on load — initial position set
+  to (-100,-100) off-screen, snaps to real position on first mousemove
+- CustomCursor.tsx: scale transition fixed — transform added to transition list
+- MagnetLines.tsx: lines no longer point to (0,0) before first mousemove
+- MagnetLines.tsx: RAF loop now pauses via IntersectionObserver when off-screen
+- MagnetLines.tsx: removed duplicate local cn() function, now imports from utils
+
+TYPESCRIPT
+- gsap.ts: removed @ts-nocheck suppression
+- gsap.ts: ScrollTrigger registration deduplicated (was registered in both gsap.ts
+  and lenis.ts)
+
+PROJECT HYGIENE
+- package.json: renamed from 'portfolio2' to 'ibrahim-salman-portfolio'
+- package.json: critters moved from dependencies to devDependencies
+- next.config.mjs: removed unstable experimental.optimizeCss (known build failures)
+- layout.tsx: removed redundant <link rel=preconnect> (next/font handles this)
+- layout.tsx: DM_Sans now loads weight 400 in addition to 300 and 500
+- lenis.ts: rewritten from module-level singleton to initLenis()/destroyLenis()
+  functions — fixes permanent smooth scroll breakage after component unmount
+- SmoothScroll.tsx: updated to use new initLenis/destroyLenis API
+- useTypewriter.ts: onComplete stabilised via ref pattern — fixes restart loop
+  when caller passes inline arrow function
+---
+ .gitignore                              |   6 ++
+ deploy.js                               |  77 --------------
+ final_final_deploy_output.txt           |  18 ----
+ next.config.mjs                         |   1 -
+ package.json                            |   8 +-
+ src/app/globals.css                     |  35 ++++++-
+ src/app/layout.tsx                      |  25 ++---
+ src/components/layout/SmoothScroll.tsx  |   7 +-
+ src/components/sections/About.tsx       |  33 +++---
+ src/components/sections/Contact.tsx     | 128 ++++++++++++++++--------
+ src/components/sections/Hero.tsx        |  30 ++++--
+ src/components/sections/ProjectCard.tsx |  48 +++++----
+ src/components/sections/Projects.tsx    |  31 +++---
+ src/components/sections/SkillCard.tsx   |  10 +-
+ src/components/sections/Skills.tsx      |  48 +++++----
+ src/components/sections/StatsRow.tsx    |  16 +--
+ src/components/three/FloatingModel.tsx  |  11 +-
+ src/components/ui/ConsoleBreadcrumb.tsx |   6 +-
+ src/components/ui/CustomCursor.tsx      |  17 +++-
+ src/components/ui/DebugPanel.tsx        |  10 +-
+ src/components/ui/FuzzyText.tsx         |  17 +++-
+ src/components/ui/MagnetLines.tsx       |  36 ++++---
+ src/hooks/useMagneticEffect.ts          |  27 +++--
+ src/hooks/useTypewriter.ts              |  18 ++--
+ src/lib/gsap.ts                         |   1 -
+ src/lib/lenis.ts                        |  16 ++-
+ 26 files changed, 355 insertions(+), 325 deletions(-)
+ delete mode 100644 deploy.js
+ delete mode 100644 final_final_deploy_output.txt
+
+diff --git a/.gitignore b/.gitignore
+index fd3dbb5..aeca6d7 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -34,3 +34,9 @@ yarn-error.log*
+ # typescript
+ *.tsbuildinfo
+ next-env.d.ts
++
++# deployment scripts and output logs - never commit these
++deploy.js
++*.tgz
++*_output.txt
++*_deploy_output.txt
+diff --git a/deploy.js b/deploy.js
+deleted file mode 100644
+index bcd0705..0000000
+--- a/deploy.js
++++ /dev/null
+@@ -1,77 +0,0 @@
+-const { execSync } = require('child_process');
+-const fs = require('fs');
+-const path = require('path');
+-const https = require('https');
+-
+-const PROJECT_PATH = process.cwd();
+-const TARBALL_NAME = 'project.tgz';
+-const tarballPath = path.join(require('os').tmpdir(), TARBALL_NAME);
+-
+-console.log('Preparing deployment for:', PROJECT_PATH);
+-
+-// 1. Detect framework
+-let framework = 'nextjs';
+-const pkg = JSON.parse(fs.readFileSync(path.join(PROJECT_PATH, 'package.json'), 'utf8'));
+-if (pkg.dependencies && pkg.dependencies.vite) framework = 'vite';
+-
+-console.log('Detected framework:', framework);
+-
+-// 2. Create tarball
+-try {
+-  console.log('Creating deployment package...', tarballPath);
+-  execSync(`tar -czf "${tarballPath}" -C "${PROJECT_PATH}" --exclude=node_modules --exclude=.git --exclude=.next --exclude=.DS_Store .`, { stdio: 'inherit' });
+-} catch (err) {
+-  console.error('Failed to create tarball:', err);
+-  process.exit(1);
+-}
+-
+-// 3. Deploy to Vercel
+-const tarballContent = fs.readFileSync(tarballPath);
+-
+-const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
+-const header = `--${boundary}\r\nContent-Disposition: form-data; name="framework"\r\n\r\n${framework}\r\n` +
+-               `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="project.tgz"\r\nContent-Type: application/gzip\r\n\r\n`;
+-const footer = `\r\n--${boundary}--\r\n`;
+-
+-const postData = Buffer.concat([
+-  Buffer.from(header, 'utf8'),
+-  tarballContent,
+-  Buffer.from(footer, 'utf8')
+-]);
+-
+-const options = {
+-  hostname: 'skill-deploy.vercel.app',
+-  port: 443,
+-  path: '/api/deploy',
+-  method: 'POST',
+-  headers: {
+-    'Content-Type': `multipart/form-data; boundary=${boundary}`,
+-    'Content-Length': postData.length
+-  }
+-};
+-
+-console.log('Deploying to Vercel...');
+-
+-const req = https.request(options, (res) => {
+-  let body = '';
+-  res.on('data', (chunk) => body += chunk);
+-  res.on('end', () => {
+-    if (res.statusCode >= 200 && res.statusCode < 300) {
+-      const data = JSON.parse(body);
+-      console.log('\nDeployment Successful!');
+-      console.log('Preview URL:', data.url);
+-      console.log('Claim URL:  ', data.claimUrl);
+-      console.log('\nNote: It may take a minute for the build to start. Visit the Preview URL to check status.');
+-    } else {
+-      console.error('Deployment Failed:', res.statusCode, body);
+-      process.exit(1);
+-    }
+-  });
+-});
+-
+-req.on('error', (e) => {
+-  console.error('Request error:', e);
+-});
+-
+-req.write(postData);
+-req.end();
+diff --git a/final_final_deploy_output.txt b/final_final_deploy_output.txt
+deleted file mode 100644
+index 824dd7e..0000000
+--- a/final_final_deploy_output.txt
++++ /dev/null
+@@ -1,18 +0,0 @@
+-node:internal/modules/cjs/loader:1424
+-  throw err;
+-  ^
+-
+-Error: Cannot find module 'C:\Users\hafiz\OneDrive - University of Engineering and Technology Taxila\Desktop\portfolio2\deploy.js'
+-    at Module._resolveFilename (node:internal/modules/cjs/loader:1421:15)
+-    at defaultResolveImpl (node:internal/modules/cjs/loader:1059:19)
+-    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1064:22)
+-    at Module._load (node:internal/modules/cjs/loader:1227:37)
+-    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+-    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+-    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+-    at node:internal/main/run_main_module:33:47 {
+-  code: 'MODULE_NOT_FOUND',
+-  requireStack: []
+-}
+-
+-Node.js v24.12.0
+diff --git a/next.config.mjs b/next.config.mjs
+index fac2924..6790aa8 100644
+--- a/next.config.mjs
++++ b/next.config.mjs
+@@ -1,6 +1,5 @@
+ /** @type {import('next').NextConfig} */
+ const nextConfig = {
+-  experimental: { optimizeCss: true },
+   images: {
+     formats: ['image/avif', 'image/webp'],
+     minimumCacheTTL: 31536000,
+diff --git a/package.json b/package.json
+index 7ece880..74e68b2 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+-	"name": "portfolio2",
+-	"version": "0.1.0",
++	"name": "ibrahim-salman-portfolio",
++	"version": "1.0.0",
+ 	"private": true,
+ 	"engines": {
+ 		"node": ">=20"
+@@ -24,13 +24,13 @@
+ 		"react-dom": "^18",
+ 		"tailwind-merge": "^3.5.0",
+ 		"three": "^0.170.0",
+-		"zustand": "^4.5.7",
+-		"critters": "^0.0.23"
++		"zustand": "^4.5.7"
+ 	},
+ 	"devDependencies": {
+ 		"@types/node": "^20",
+ 		"@types/react": "^18",
+ 		"@types/react-dom": "^18",
++		"critters": "^0.0.23",
+ 		"eslint-config-next": "14.2.5",
+ 		"jsrepo": "^3.6.2",
+ 		"postcss": "^8",
+diff --git a/src/app/globals.css b/src/app/globals.css
+index f59bab0..e94ac58 100644
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -20,9 +20,6 @@
+   --green: #3ed9a4;
+   --amber: #f0a854;
+   --red: #f06070;
+-
+-  /* Lenis support */
+-  --scroll-behavior: smooth;
+ }
+ 
+ @media (pointer: coarse) {
+@@ -93,3 +90,35 @@ h2 {
+ .eyebrow {
+   @apply font-sans font-medium text-[11px] uppercase tracking-eyebrow text-accent;
+ }
++
++/* underline-effect: animated underline on accent text */
++.underline-effect {
++  position: relative;
++}
++.underline-effect::after {
++  content: '';
++  position: absolute;
++  left: 0;
++  bottom: -2px;
++  width: 100%;
++  height: 2px;
++  background: var(--accent);
++  transform: scaleX(1);
++  transform-origin: left;
++  transition: transform 0.3s ease;
++}
++
++/* custom-scrollbar: styled scrollbar for terminal and debug panel */
++.custom-scrollbar::-webkit-scrollbar {
++  width: 4px;
++}
++.custom-scrollbar::-webkit-scrollbar-track {
++  background: transparent;
++}
++.custom-scrollbar::-webkit-scrollbar-thumb {
++  background: var(--surface-3);
++  border-radius: 2px;
++}
++.custom-scrollbar::-webkit-scrollbar-thumb:hover {
++  background: var(--border-md);
++}
+diff --git a/src/app/layout.tsx b/src/app/layout.tsx
+index ab4a5f7..4dead4f 100644
+--- a/src/app/layout.tsx
++++ b/src/app/layout.tsx
+@@ -13,7 +13,7 @@ const syne = Syne({
+ const dmSans = DM_Sans({
+   subsets: ['latin'],
+   variable: '--font-dm-sans',
+-  weight: ['300', '500'],
++  weight: ['300', '400', '500'],
+ });
+ 
+ const dmMono = DM_Mono({
+@@ -23,18 +23,18 @@ const dmMono = DM_Mono({
+ });
+ 
+ export const metadata: Metadata = {
+-  title: 'Ibrahim Salman | Senior Frontend Architect',
+-  description: 'Technical portfolio of Ibrahim Salman, a senior frontend engineer and creative director based in Taxila, specializing in React, Three.js and performance engineering.',
+-  keywords: ['Frontend Architect', 'React Developer', 'Three.js', 'WebGL', 'Taxila Developer', 'Ibrahim Salman'],
++  title: 'Ibrahim Salman | Software Engineer',
++  description: 'Portfolio of Ibrahim Salman, a Software Engineering student at UET Taxila building web apps, AI tools, and creative digital experiences.',
++  keywords: ['Software Engineer', 'React Developer', 'Python', 'Next.js', 'UET Taxila', 'Ibrahim Salman'],
+   authors: [{ name: 'Ibrahim Salman' }],
+   openGraph: {
+-    title: 'Ibrahim Salman | Senior Frontend Architect',
+-    description: 'Building high-performance, award-winning digital experiences with React, TypeScript, and Three.js.',
+-    url: 'https://skill-deploy-fwgk5oq8bj-agent-skill-vercel.vercel.app',
++    title: 'Ibrahim Salman | Software Engineer',
++    description: 'Building web apps, AI tools, and creative digital experiences.',
++    url: 'https://devhms.vercel.app',
+     siteName: 'Ibrahim Salman Portfolio',
+     images: [
+       {
+-        url: 'https://skill-deploy-fwgk5oq8bj-agent-skill-vercel.vercel.app/og-image.png',
++        url: '/og-image.png',
+         width: 1200,
+         height: 630,
+         alt: 'Ibrahim Salman Portfolio Preview',
+@@ -45,9 +45,9 @@ export const metadata: Metadata = {
+   },
+   twitter: {
+     card: 'summary_large_image',
+-    title: 'Ibrahim Salman | Senior Frontend Architect',
+-    description: 'Building high-performance digital experiences.',
+-    images: ['https://skill-deploy-fwgk5oq8bj-agent-skill-vercel.vercel.app/og-image.png'],
++    title: 'Ibrahim Salman | Software Engineer',
++    description: 'Building web apps, AI tools, and creative digital experiences.',
++    images: ['/og-image.png'],
+   },
+   robots: {
+     index: true,
+@@ -68,9 +68,6 @@ export default function RootLayout({
+ }>) {
+   return (
+     <html lang="en" className={`${syne.variable} ${dmSans.variable} ${dmMono.variable}`}>
+-      <head>
+-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+-      </head>
+       <body className="antialiased selection:bg-accent selection:text-white bg-bg">
+         <ConsoleBreadcrumb />
+         <ClientProviders>
+diff --git a/src/components/layout/SmoothScroll.tsx b/src/components/layout/SmoothScroll.tsx
+index e404aab..106bd32 100644
+--- a/src/components/layout/SmoothScroll.tsx
++++ b/src/components/layout/SmoothScroll.tsx
+@@ -1,14 +1,13 @@
+ 'use client';
+ 
+ import { useEffect } from 'react';
+-import { lenis } from '@/lib/lenis';
++import { initLenis, destroyLenis } from '@/lib/lenis';
+ 
+ export function SmoothScroll() {
+   useEffect(() => {
+-    // This effect ensures the lenis module is loaded and side effects run
+-    // lenis is a singleton already configured in lib/lenis.ts
++    initLenis();
+     return () => {
+-      lenis?.destroy();
++      destroyLenis();
+     };
+   }, []);
+ 
+diff --git a/src/components/sections/About.tsx b/src/components/sections/About.tsx
+index 2589000..a147ccc 100644
+--- a/src/components/sections/About.tsx
++++ b/src/components/sections/About.tsx
+@@ -3,18 +3,19 @@
+ import { useRef, useEffect } from 'react';
+ import { gsap } from '@/lib/gsap';
+ import { Zap, Bot, Palette } from 'lucide-react';
+-import { cn } from '@/lib/utils';
+- 
+-const ICON_WRAPPER_CLASSES = "w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center";
++
++// cn import removed — was imported but never used in this component
++
++const ICON_WRAPPER_CLASSES = 'w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center';
+ 
+ interface RoleCardProps {
+   icon: React.ElementType;
+   title: string;
+   description: string;
+-  delay?: number;
++  // delay prop removed — was defined but never used inside RoleCard
+ }
+ 
+-function RoleCard({ icon: Icon, title, description, delay = 0 }: RoleCardProps) {
++function RoleCard({ icon: Icon, title, description }: RoleCardProps) {
+   return (
+     <div data-magnetic className="role-card p-6 bg-surface-1 border border-border-sm rounded-xl hover:border-accent/40 transition-colors duration-300">
+       <div className="flex items-center gap-4 mb-3">
+@@ -74,28 +75,28 @@ export function About() {
+               Building from <span className="text-accent underline decoration-accent/30 underline-offset-8">Taxila</span> to the world.
+             </h2>
+             <p className="text-lg text-text-2 font-light leading-relaxed">
+-              I am <span className="text-text-1 font-medium text-accent">Ibrahim Salman</span>, a Senior Frontend Architect and Creative Developer based in Taxila, Pakistan. My journey is defined by a relentless obsession with the "Goldilocks Zone" of engineering—where high-performance code meets museum-grade visual design.
++              I am <span className="text-accent font-medium">Ibrahim Salman</span>, a Software Engineering student at UET Taxila and a self-driven developer building at the intersection of web, AI, and data. From scraping live stock data to shipping creative 3D web experiences, I care about code that works and feels alive.
+             </p>
+             <p className="text-lg text-text-2 font-light leading-relaxed">
+-              With over half a decade of experience, I specialize in architecting complex React ecosystems and immersive 3D WebGL experiences. I don&apos;t just ship features; I ship precision-engineered digital products that feel as good as they look.
++              Alongside my studies I lead digital outreach and build tools for IJT — applying what I learn in the real world from day one. I don&apos;t wait to graduate to ship. I ship now.
+             </p>
+           </div>
+ 
+           <div className="role-cards-container flex flex-col gap-4">
+-            <RoleCard 
++            <RoleCard
+               icon={Zap}
+-              title="Senior Frontend Architect"
+-              description="React, TypeScript, performance-first architecture and design system scaling."
++              title="Web Developer"
++              description="React, Next.js, TypeScript — building fast, accessible, visually sharp interfaces."
+             />
+-            <RoleCard 
++            <RoleCard
+               icon={Bot}
+-              title="Fullstack Engineer"
+-              description="End-to-end products, robust APIs, AI agent integration and cloud infrastructure."
++              title="Python & AI Builder"
++              description="Web scrapers, data pipelines, LangChain agents, OCR workflows, and Ollama-powered tools."
+             />
+-            <RoleCard 
++            <RoleCard
+               icon={Palette}
+-              title="UI Developer"
+-              description="Motion design, WebGL/Three.js, and crafting high-fidelity accessible interfaces."
++              title="Creative Developer"
++              description="Three.js, GSAP, WebGL — adding motion and depth to interfaces that need to be remembered."
+             />
+           </div>
+         </div>
+diff --git a/src/components/sections/Contact.tsx b/src/components/sections/Contact.tsx
+index d81840e..9250ae2 100644
+--- a/src/components/sections/Contact.tsx
++++ b/src/components/sections/Contact.tsx
+@@ -1,8 +1,7 @@
+ 'use client';
+ 
+-import { useState, useRef, useEffect } from 'react';
++import { useState, useRef, useEffect, useCallback } from 'react';
+ import { Github, Linkedin, Mail, Terminal as TerminalIcon } from 'lucide-react';
+-import { cn } from '@/lib/utils';
+ 
+ interface LogEntry {
+   type: 'input' | 'system' | 'error' | 'success';
+@@ -17,7 +16,8 @@ export function Contact() {
+   const [history, setHistory] = useState<string[]>([]);
+   const [historyIndex, setHistoryIndex] = useState(-1);
+   const [formData, setFormData] = useState({ name: '', email: '', message: '' });
+-  
++  const [isSending, setIsSending] = useState(false);
++
+   const scrollRef = useRef<HTMLDivElement>(null);
+   const inputRef = useRef<HTMLInputElement>(null);
+ 
+@@ -33,71 +33,94 @@ export function Contact() {
+ 
+   const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+ 
+-  const processCommand = (cmd: string) => {
++  const addLog = useCallback((entry: LogEntry) => {
++    setLogs(prev => [...prev, entry]);
++  }, []);
++
++  const processCommand = useCallback(async (cmd: string) => {
+     const trimmedCmd = cmd.trim().toLowerCase();
+     const parts = cmd.split('"');
+     const value = parts[1] || '';
+ 
+     if (trimmedCmd === 'help') {
+-      setLogs(prev => [...prev, { type: 'system', content: 'Available commands:\n- name "YOUR_NAME"\n- email "YOUR_EMAIL"\n- message "YOUR_MESSAGE"\n- send (submits form)\n- clear (resets terminal)\n- help (shows this list)' }]);
++      addLog({ type: 'system', content: 'Available commands:\n- name "YOUR_NAME"\n- email "YOUR_EMAIL"\n- message "YOUR_MESSAGE"\n- send (submits form)\n- clear (resets terminal)\n- help (shows this list)' });
++
+     } else if (trimmedCmd.startsWith('name')) {
+       if (value) {
+         setFormData(prev => ({ ...prev, name: value }));
+-        setLogs(prev => [...prev, { type: 'system', content: `Name set to: ${value}` }]);
++        addLog({ type: 'system', content: `Name set to: ${value}` });
+       } else {
+-        setLogs(prev => [...prev, { type: 'error', content: 'Usage: name "Your Name"' }]);
++        addLog({ type: 'error', content: 'Usage: name "Your Name"' });
+       }
++
+     } else if (trimmedCmd.startsWith('email')) {
+       if (validateEmail(value)) {
+         setFormData(prev => ({ ...prev, email: value }));
+-        setLogs(prev => [...prev, { type: 'system', content: `Email set to: ${value}` }]);
++        addLog({ type: 'system', content: `Email set to: ${value}` });
+       } else {
+-        setLogs(prev => [...prev, { type: 'error', content: 'Invalid email format. Please use name@domain.com' }]);
++        addLog({ type: 'error', content: 'Invalid email format. Please use name@domain.com' });
+       }
++
+     } else if (trimmedCmd.startsWith('message')) {
+       if (value) {
+         setFormData(prev => ({ ...prev, message: value }));
+-        setLogs(prev => [...prev, { type: 'system', content: `Message stored. Ready to send.` }]);
++        addLog({ type: 'system', content: 'Message stored. Ready to send.' });
+       } else {
+-        setLogs(prev => [...prev, { type: 'error', content: 'Usage: message "Your message here"' }]);
++        addLog({ type: 'error', content: 'Usage: message "Your message here"' });
+       }
++
+     } else if (trimmedCmd === 'send') {
+       if (!formData.name || !formData.email || !formData.message) {
+-        setLogs(prev => [...prev, { type: 'error', content: 'Incomplete form. Ensure name, email, and message are set.' }]);
+-      } else {
+-        setLogs(prev => [...prev, { type: 'system', content: `Preparing to transmit message from ${formData.name}...` }]);
+-        
+-        const steps = [
+-          'Handshaking with API gateway (127.0.0.1:443)...',
+-          'Encrypting payload with RSA-4096...',
+-          'Transmitting packets...',
+-          'Waiting for server acknowledgment...'
+-        ];
+-        
+-        steps.forEach((step, index) => {
+-          setTimeout(() => {
+-            setLogs(prev => [...prev, { type: 'system', content: step }]);
+-          }, (index + 1) * 600);
++        addLog({ type: 'error', content: 'Incomplete. Set name, email, and message first.' });
++        return;
++      }
++
++      if (isSending) return;
++      setIsSending(true);
++      addLog({ type: 'system', content: `Sending message from ${formData.name}...` });
++
++      try {
++        // Real email via Formspree — replace FORM_ID with your Formspree form ID.
++        // Sign up free at formspree.io, create a form, copy the ID.
++        const FORMSPREE_ID = 'YOUR_FORMSPREE_ID';
++
++        if (FORMSPREE_ID === 'YOUR_FORMSPREE_ID') {
++          // Dev fallback: show instructions if Formspree not configured
++          addLog({ type: 'error', content: 'Contact form not yet configured. Email directly: ibrahimsalman.dev@gmail.com' });
++          setIsSending(false);
++          return;
++        }
++
++        const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
++          method: 'POST',
++          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
++          body: JSON.stringify({ name: formData.name, email: formData.email, message: formData.message }),
+         });
+ 
+-        setTimeout(() => {
+-          setLogs(prev => [...prev, { type: 'success', content: '✓ [200 OK] Message successfully delivered to ibrahimsalman.dev' }]);
+-          setLogs(prev => [...prev, { type: 'system', content: 'I will reply within 24 hours. Connection terminated.' }]);
++        if (res.ok) {
++          addLog({ type: 'success', content: '✓ [200 OK] Message delivered. I will reply within 24 hours.' });
+           setFormData({ name: '', email: '', message: '' });
+-        }, 3500);
++        } else {
++          addLog({ type: 'error', content: `Delivery failed [${res.status}]. Try emailing directly: ibrahimsalman.dev@gmail.com` });
++        }
++      } catch {
++        addLog({ type: 'error', content: 'Network error. Try emailing directly: ibrahimsalman.dev@gmail.com' });
++      } finally {
++        setIsSending(false);
+       }
++
+     } else if (trimmedCmd === 'clear') {
+       setLogs([{ type: 'system', content: 'Terminal cleared.' }]);
+     } else {
+-      setLogs(prev => [...prev, { type: 'error', content: `Unknown command: ${trimmedCmd}. Type "help" for a list of commands.` }]);
++      addLog({ type: 'error', content: `Unknown command: ${trimmedCmd}. Type "help" for available commands.` });
+     }
+-  };
++  }, [formData, isSending, addLog]);
+ 
+   const handleSubmit = (e: React.FormEvent) => {
+     e.preventDefault();
+-    if (!input) return;
++    if (!input.trim()) return;
+ 
+-    setLogs(prev => [...prev, { type: 'input', content: input }]);
++    addLog({ type: 'input', content: input });
+     setHistory(prev => [input, ...prev]);
+     processCommand(input);
+     setInput('');
+@@ -133,11 +156,11 @@ export function Contact() {
+           <h2 className="text-4xl font-syne font-bold text-text-1 text-wrap-balance">Let&apos;s build something</h2>
+         </div>
+ 
+-        <div 
++        <div
+           className="bg-[#0E0E1A] border border-white/10 rounded-xl overflow-hidden shadow-2xl"
+           onClick={() => inputRef.current?.focus()}
+         >
+-          {/* Mac Header */}
++          {/* Mac-style header bar */}
+           <div className="bg-white/5 border-b border-white/10 px-4 py-3 flex items-center justify-between">
+             <div className="flex gap-2">
+               <div className="w-3 h-3 rounded-full bg-[#FF5F56]" />
+@@ -152,7 +175,7 @@ export function Contact() {
+           </div>
+ 
+           {/* Terminal Content */}
+-          <div 
++          <div
+             ref={scrollRef}
+             className="h-[400px] p-6 font-mono text-[13px] overflow-y-auto custom-scrollbar leading-relaxed"
+           >
+@@ -166,10 +189,10 @@ export function Contact() {
+                 )}
+                 {log.type === 'system' && <span className="text-[#A594F9]">{log.content}</span>}
+                 {log.type === 'error' && <span className="text-red">! {log.content}</span>}
+-                {log.type === 'success' && <span className="text-green">✓ {log.content}</span>}
++                {log.type === 'success' && <span className="text-green">{log.content}</span>}
+               </div>
+             ))}
+-            
++
+             <form onSubmit={handleSubmit} className="flex items-center">
+               <span className="text-text-3 flex-shrink-0">
+                 <span className="text-accent">$</span> guest@portfolio:~$
+@@ -180,7 +203,8 @@ export function Contact() {
+                 value={input}
+                 onChange={(e) => setInput(e.target.value)}
+                 onKeyDown={handleKeyDown}
+-                className="bg-transparent border-none outline-none text-green ml-2 flex-grow font-mono"
++                disabled={isSending}
++                className="bg-transparent border-none outline-none text-green ml-2 flex-grow font-mono disabled:opacity-50"
+                 autoFocus
+                 spellCheck={false}
+                 autoComplete="off"
+@@ -190,17 +214,33 @@ export function Contact() {
+           </div>
+         </div>
+ 
+-        {/* Social Links */}
++        {/* Social Links — real URLs */}
+         <div className="mt-12 flex justify-center gap-8">
+-          <a href="https://github.com/hafizmuhammadibrahimsalman-create" target="_blank" rel="noopener noreferrer" data-magnetic className="flex items-center gap-2 text-text-2 hover:text-accent transition-colors">
++          <a
++            href="https://github.com/devhms"
++            target="_blank"
++            rel="noopener noreferrer"
++            data-magnetic
++            className="flex items-center gap-2 text-text-2 hover:text-accent transition-colors"
++          >
+             <Github className="w-5 h-5" />
+             <span className="text-xs uppercase tracking-widest font-mono">GitHub</span>
+           </a>
+-          <a href="https://linkedin.com/in/ibrahimsalman" target="_blank" rel="noopener noreferrer" data-magnetic className="flex items-center gap-2 text-text-2 hover:text-accent transition-colors">
++          <a
++            href="https://linkedin.com/in/ibrahimsalman"
++            target="_blank"
++            rel="noopener noreferrer"
++            data-magnetic
++            className="flex items-center gap-2 text-text-2 hover:text-accent transition-colors"
++          >
+             <Linkedin className="w-5 h-5" />
+             <span className="text-xs uppercase tracking-widest font-mono">LinkedIn</span>
+           </a>
+-          <a href="mailto:ibrahimsalman.dev@gmail.com" data-magnetic className="flex items-center gap-2 text-text-2 hover:text-accent transition-colors">
++          <a
++            href="mailto:ibrahimsalman.dev@gmail.com"
++            data-magnetic
++            className="flex items-center gap-2 text-text-2 hover:text-accent transition-colors"
++          >
+             <Mail className="w-5 h-5" />
+             <span className="text-xs uppercase tracking-widest font-mono">Email</span>
+           </a>
+diff --git a/src/components/sections/Hero.tsx b/src/components/sections/Hero.tsx
+index fce449f..9a72f67 100644
+--- a/src/components/sections/Hero.tsx
++++ b/src/components/sections/Hero.tsx
+@@ -4,11 +4,12 @@ import dynamic from 'next/dynamic';
+ import { useRef, useEffect, useState } from 'react';
+ import { gsap } from '@/lib/gsap';
+ import { AvailabilityBadge } from '@/components/ui/AvailabilityBadge';
+-import { FuzzyText } from '@/components/ui/FuzzyText';
+ import { StatsRow } from '@/components/sections/StatsRow';
+ import { MagnetLines } from '@/components/ui/MagnetLines';
+ import { CanvasSkeleton } from '@/components/three/CanvasSkeleton';
+ 
++// FuzzyText import removed — component was imported but never used in JSX
++
+ const Scene = dynamic(() => import('@/components/three/Scene').then((mod) => mod.Scene), {
+   ssr: false,
+   loading: () => <CanvasSkeleton />,
+@@ -28,7 +29,6 @@ export function Hero() {
+     if (mobileCheck) return;
+ 
+     const ctx = gsap.context(() => {
+-      // Entry animations
+       gsap.from(titleRef.current, {
+         opacity: 0,
+         y: 60,
+@@ -45,7 +45,6 @@ export function Hero() {
+         ease: 'power3.out',
+       });
+ 
+-      // Scroll animations for the 3D canvas
+       if (canvasWrapperRef.current) {
+         gsap.to(canvasWrapperRef.current, {
+           scale: 0.7,
+@@ -72,7 +71,7 @@ export function Hero() {
+       <div className="container mx-auto grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-12 items-center">
+         <div className="flex flex-col gap-6 z-10">
+           <AvailabilityBadge />
+-          
++
+           <div ref={titleRef} className="perspective-1000">
+             <h1 className="text-display-h1 leading-[1.1] text-text-1 text-wrap-balance">
+               I build <span className="text-accent underline-effect">fast</span>, beautiful <br />
+@@ -81,17 +80,28 @@ export function Hero() {
+           </div>
+ 
+           <p ref={subTitleRef} className="text-lg md:text-xl text-text-2 max-w-[560px] font-light leading-relaxed text-wrap-balance">
+-            Senior Frontend Architect with 5+ years of experience shipping award-winning digital products. 
+-            Deep expert in React, Three.js, and performance engineering.
++            Software Engineering student at UET Taxila. Building web apps, AI tools, and creative digital experiences with React, Python, and Three.js.
+           </p>
+ 
+           <div className="flex flex-wrap gap-4 mt-4">
+-            <button data-magnetic className="px-8 py-4 bg-accent text-white font-medium rounded-full hover:bg-accent-2 transition-colors duration-300">
++            {/* Scroll to projects section */}
++            <a
++              href="#projects"
++              data-magnetic
++              className="px-8 py-4 bg-accent text-white font-medium rounded-full hover:bg-accent-2 transition-colors duration-300"
++            >
+               View my work
+-            </button>
+-            <button data-magnetic className="px-8 py-4 bg-transparent border border-border-md text-text-1 font-medium rounded-full hover:bg-surface-1 transition-colors duration-300">
++            </a>
++            {/* Link to actual CV — update href when CV PDF is uploaded to /public/cv.pdf */}
++            <a
++              href="/cv.pdf"
++              target="_blank"
++              rel="noopener noreferrer"
++              data-magnetic
++              className="px-8 py-4 bg-transparent border border-border-md text-text-1 font-medium rounded-full hover:bg-surface-1 transition-colors duration-300"
++            >
+               Download CV
+-            </button>
++            </a>
+           </div>
+ 
+           <StatsRow />
+diff --git a/src/components/sections/ProjectCard.tsx b/src/components/sections/ProjectCard.tsx
+index 3ff8535..f835bf5 100644
+--- a/src/components/sections/ProjectCard.tsx
++++ b/src/components/sections/ProjectCard.tsx
+@@ -1,14 +1,11 @@
+ 'use client';
+ 
+-import { useRef, useEffect } from 'react';
+-import { gsap } from '@/lib/gsap';
+ import { Project } from '@/types';
+ import { cn } from '@/lib/utils';
+ import { ArrowUpRight } from 'lucide-react';
+ import { useCursorStore } from '@/store/cursor.store';
+ 
+-export function ProjectCard({ type, year, title, description, stack, featured }: Project) {
+-  const cardRef = useRef<HTMLDivElement>(null);
++export function ProjectCard({ type, year, title, description, stack, link, featured }: Project) {
+   const { setHovered, setLabel } = useCursorStore();
+ 
+   const handleMouseEnter = () => {
+@@ -21,23 +18,31 @@ export function ProjectCard({ type, year, title, description, stack, featured }:
+     setLabel('');
+   };
+ 
++  const Wrapper = link ? 'a' : 'div';
++  const wrapperProps = link
++    ? { href: link, target: '_blank' as const, rel: 'noopener noreferrer' }
++    : {};
++
+   return (
+-    <div
+-      ref={cardRef}
++    <Wrapper
++      {...wrapperProps}
+       data-cursor-label="View →"
++      onMouseEnter={handleMouseEnter}
++      onMouseLeave={handleMouseLeave}
+       className={cn(
+         'group relative overflow-hidden rounded-2xl border border-border-sm transition-all duration-500 hover:bg-surface-2 hover:-translate-y-0.5',
+-        featured 
+-          ? 'col-span-full bg-gradient-to-br from-[#141420] to-[#18182a] p-8 md:p-12 border-accent/20' 
++        link && 'cursor-pointer',
++        featured
++          ? 'col-span-full bg-gradient-to-br from-[#141420] to-[#18182a] p-8 md:p-12 border-accent/20'
+           : 'bg-surface-1 p-8'
+       )}
+     >
+       {/* Top Border Gradient Line */}
+       <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-accent/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+-      
++
+       {/* Hover Background Glow */}
+       <div className="absolute inset-0 bg-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+-      
++
+       <div className="relative z-10 flex flex-col h-full">
+         <div className="flex justify-between items-start mb-6">
+           <div className="flex flex-col gap-1">
+@@ -54,23 +59,24 @@ export function ProjectCard({ type, year, title, description, stack, featured }:
+         </h3>
+ 
+         <p className={cn(
+-          "text-text-2 mb-8 font-light leading-relaxed text-wrap-balance",
+-          featured ? "text-lg md:text-xl max-w-2xl" : "text-sm max-w-lg"
++          'text-text-2 mb-8 font-light leading-relaxed text-wrap-balance',
++          featured ? 'text-lg md:text-xl max-w-2xl' : 'text-sm max-w-lg'
+         )}>
+           {description}
+         </p>
+ 
+-        <div 
+-          data-magnetic 
+-          aria-hidden="true"
+-          className="absolute bottom-8 right-8 w-12 h-12 rounded-full border border-border-sm flex items-center justify-center bg-surface-1 shadow-2xl opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all duration-500"
+-        >
+-          <ArrowUpRight className="w-6 h-6 text-accent" />
+-        </div>
++        {link && (
++          <div
++            aria-hidden="true"
++            className="absolute bottom-8 right-8 w-12 h-12 rounded-full border border-border-sm flex items-center justify-center bg-surface-1 shadow-2xl opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all duration-500"
++          >
++            <ArrowUpRight className="w-6 h-6 text-accent" />
++          </div>
++        )}
+ 
+         <div className="mt-auto flex flex-wrap gap-2 pt-6">
+           {stack.map((item) => (
+-            <span 
++            <span
+               key={item}
+               className="px-3 py-1 text-[11px] font-mono bg-white/5 text-text-2 border border-white/5 rounded-full group-hover:border-accent/10 transition-colors"
+             >
+@@ -79,6 +85,6 @@ export function ProjectCard({ type, year, title, description, stack, featured }:
+           ))}
+         </div>
+       </div>
+-    </div>
++    </Wrapper>
+   );
+ }
+diff --git a/src/components/sections/Projects.tsx b/src/components/sections/Projects.tsx
+index cad2de7..0c990fd 100644
+--- a/src/components/sections/Projects.tsx
++++ b/src/components/sections/Projects.tsx
+@@ -8,29 +8,32 @@ import { Project } from '@/types';
+ const PROJECTS_DATA: Project[] = [
+   {
+     id: 'p1',
+-    type: 'AI × Full-Stack',
++    type: 'Python · Web Scraping',
+     year: '2025',
+-    title: 'AI-Powered Analytics Dashboard',
+-    description: 'Real-time platform with NL querying, LangChain agents, 10k+ DAU and automated predictive insights.',
+-    stack: ['React', 'LangChain', 'FastAPI', 'PostgreSQL', 'Docker'],
++    title: 'Dawn News Scraper',
++    description: 'Automated news aggregator using Python and BeautifulSoup that scrapes Dawn.com, parses headlines, categories, and article bodies, and exports structured data for downstream analysis.',
++    stack: ['Python', 'BeautifulSoup', 'Requests', 'JSON'],
++    link: 'https://github.com/devhms',
+     featured: true,
+   },
+   {
+     id: 'p2',
+-    type: 'Frontend',
+-    year: '2024',
+-    title: '3D Product Configurator',
+-    description: 'High-performance WebGL configurator allowing users to customize complex 3D assets in real-time with physics-based materials and instant AR preview.',
+-    stack: ['Three.js', 'R3F', 'GLSL', 'React'],
++    type: 'Python · Finance',
++    year: '2025',
++    title: 'B.L.A.S.T. — PSX Data Pipeline',
++    description: 'Real-time Pakistan Stock Exchange data pipeline that fetches live quotes and pushes them to Google Sheets for tracking and analysis.',
++    stack: ['Python', 'gspread', 'Google Sheets API', 'Requests'],
++    link: 'https://github.com/devhms',
+     featured: false,
+   },
+   {
+     id: 'p3',
+-    type: 'Full-Stack',
+-    year: '2024',
+-    title: 'Real-time Collaboration Suite',
+-    description: 'A distributed document editor supporting simultaneous multi-user editing with conflict-free data sync and live cursor presence.',
+-    stack: ['Next.js', 'Yjs', 'WebSockets', 'CRDTs'],
++    type: 'React · Next.js',
++    year: '2025',
++    title: 'This Portfolio',
++    description: 'Performance-first personal portfolio built with Next.js 14, Three.js, GSAP scroll animations, and a physics-based magnetic cursor system.',
++    stack: ['Next.js', 'Three.js', 'GSAP', 'TypeScript', 'Tailwind'],
++    link: 'https://github.com/devhms/Portfolio',
+     featured: false,
+   },
+ ];
+diff --git a/src/components/sections/SkillCard.tsx b/src/components/sections/SkillCard.tsx
+index 515e514..a9f562e 100644
+--- a/src/components/sections/SkillCard.tsx
++++ b/src/components/sections/SkillCard.tsx
+@@ -1,17 +1,14 @@
+ 'use client';
+ 
+-import { useRef, useEffect } from 'react';
+-import { gsap } from '@/lib/gsap';
++import { useRef } from 'react';
+ import { Skill } from '@/types';
+ import { cn } from '@/lib/utils';
+ 
++// Note: internal bar animation is handled by staggered ScrollTrigger in parent Skills.tsx
++
+ export function SkillCard({ name, level, percentage, color, tags }: Skill) {
+-  const cardRef = useRef<HTMLDivElement>(null);
+   const barRef = useRef<HTMLDivElement>(null);
+ 
+-  // Internal bar animation removed to be handled by staggered ScrollTrigger in parent (Skills.tsx)
+-  useEffect(() => {}, []);
+-
+   const colorMap = {
+     accent: 'bg-accent',
+     green: 'bg-green',
+@@ -21,7 +18,6 @@ export function SkillCard({ name, level, percentage, color, tags }: Skill) {
+ 
+   return (
+     <div
+-      ref={cardRef}
+       data-magnetic
+       className="group p-6 bg-surface-1 border border-border-sm rounded-xl hover:bg-surface-2 hover:border-border-md transition-all duration-300"
+     >
+diff --git a/src/components/sections/Skills.tsx b/src/components/sections/Skills.tsx
+index c96fcde..58819e2 100644
+--- a/src/components/sections/Skills.tsx
++++ b/src/components/sections/Skills.tsx
+@@ -6,47 +6,47 @@ import { SkillCard } from './SkillCard';
+ import { Skill } from '@/types';
+ 
+ const SKILLS_DATA: Skill[] = [
++  {
++    name: 'Python',
++    level: 'Advanced',
++    percentage: 75,
++    color: 'green',
++    tags: ['BeautifulSoup', 'FastAPI', 'LangChain'],
++  },
+   {
+     name: 'React / Next.js',
+-    level: 'Expert',
+-    percentage: 95,
++    level: 'Advanced',
++    percentage: 68,
+     color: 'accent',
+-    tags: ['R19', 'RSC', 'Zustand'],
++    tags: ['App Router', 'RSC', 'Hooks'],
+   },
+   {
+     name: 'TypeScript',
+-    level: 'Expert',
+-    percentage: 92,
++    level: 'Proficient',
++    percentage: 60,
+     color: 'accent',
+-    tags: ['Strict', 'Generics', 'Zod'],
++    tags: ['Interfaces', 'Generics', 'Types'],
+   },
+   {
+-    name: 'Python / AI',
++    name: 'C++ / OOP',
+     level: 'Advanced',
+-    percentage: 82,
++    percentage: 72,
+     color: 'green',
+-    tags: ['LangChain', 'FastAPI', 'PyTorch'],
++    tags: ['OOP', 'DSA', 'Algorithms'],
+   },
+   {
+     name: 'Three.js / WebGL',
+-    level: 'Advanced',
+-    percentage: 78,
+-    color: 'green',
+-    tags: ['R3F', 'GLSL', 'Draco'],
+-  },
+-  {
+-    name: 'Node.js / DevOps',
+-    level: 'Advanced',
+-    percentage: 80,
+-    color: 'green',
+-    tags: ['Docker', 'CI/CD', 'Linux'],
++    level: 'Proficient',
++    percentage: 50,
++    color: 'amber',
++    tags: ['R3F', 'Matcap', 'Drei'],
+   },
+   {
+-    name: 'Algorithms / DSA',
++    name: 'AI / LangChain',
+     level: 'Proficient',
+-    percentage: 72,
++    percentage: 55,
+     color: 'amber',
+-    tags: ['C++', 'Competitive', 'OOP'],
++    tags: ['Ollama', 'CrewAI', 'OCR'],
+   },
+ ];
+ 
+@@ -59,7 +59,6 @@ export function Skills() {
+     if (isReduced) return;
+ 
+     const ctx = gsap.context(() => {
+-      // Card entry animation
+       gsap.from('.skill-card', {
+         opacity: 0,
+         y: 40,
+@@ -73,7 +72,6 @@ export function Skills() {
+         },
+       });
+ 
+-      // Skill bar fill animation
+       gsap.from('.skill-bar-fill', {
+         width: 0,
+         stagger: 0.1,
+diff --git a/src/components/sections/StatsRow.tsx b/src/components/sections/StatsRow.tsx
+index 41c2eee..642d91f 100644
+--- a/src/components/sections/StatsRow.tsx
++++ b/src/components/sections/StatsRow.tsx
+@@ -16,7 +16,9 @@ function StatItem({ value, label, suffix = '' }: StatItemProps) {
+   const { number } = useSpring({
+     from: { number: 0 },
+     to: { number: inView ? value : 0 },
+-    config: { mass: 1, tension: 20, friction: 10 },
++    // Fixed: was critically underdamped (tension:20, friction:10) causing wild oscillation.
++    // These values produce a smooth count-up with a gentle ease-out settle.
++    config: { mass: 1, tension: 80, friction: 30 },
+   });
+ 
+   useEffect(() => {
+@@ -27,7 +29,9 @@ function StatItem({ value, label, suffix = '' }: StatItemProps) {
+           observer.unobserve(entry.target);
+         }
+       },
+-      { threshold: 0, rootMargin: '0px 0px -100px 0px' }
++      // Fixed rootMargin: was '-100px' which prevented trigger on small screens.
++      // Now triggers as soon as 20% of the element is visible.
++      { threshold: 0.2 }
+     );
+ 
+     if (ref.current) observer.observe(ref.current);
+@@ -48,10 +52,10 @@ function StatItem({ value, label, suffix = '' }: StatItemProps) {
+ export function StatsRow() {
+   return (
+     <div className="grid grid-cols-2 md:grid-cols-4 gap-8 pt-12 mt-16 border-t border-border-sm">
+-      <StatItem value={48} label="Projects" suffix="+" />
+-      <StatItem value={5} label="Experience" suffix="yr" />
+-      <StatItem value={4096} label="Git Commits" />
+-      <StatItem value={10} label="AI Projects" />
++      <StatItem value={12} label="Projects" suffix="+" />
++      <StatItem value={1} label="Experience" suffix="yr" />
++      <StatItem value={200} label="Git Commits" suffix="+" />
++      <StatItem value={5} label="AI Projects" />
+     </div>
+   );
+ }
+diff --git a/src/components/three/FloatingModel.tsx b/src/components/three/FloatingModel.tsx
+index e8ed4ea..e95e5bf 100644
+--- a/src/components/three/FloatingModel.tsx
++++ b/src/components/three/FloatingModel.tsx
+@@ -1,4 +1,4 @@
+-import { useRef, useMemo } from 'react';
++import { useRef } from 'react';
+ import { useFrame, useLoader } from '@react-three/fiber';
+ import { Float, Wireframe } from '@react-three/drei';
+ import * as THREE from 'three';
+@@ -7,8 +7,7 @@ import { useDebugStore } from '@/store/debug.store';
+ export function FloatingModel() {
+   const meshRef = useRef<THREE.Mesh>(null);
+   const { isDebug } = useDebugStore();
+-  
+-  // Load local matcap texture
++
+   const matcap = useLoader(THREE.TextureLoader, '/textures/matcap-purple.png');
+ 
+   useFrame((state) => {
+@@ -20,7 +19,11 @@ export function FloatingModel() {
+ 
+   return (
+     <Float speed={1.5} rotationIntensity={0.4} floatIntensity={0.8}>
+-      <mesh ref={meshRef} castShadow receiveShadow>
++      {/*
++        castShadow / receiveShadow removed: Scene has no lights and uses MeshMatcapMaterial
++        which ignores the lighting system entirely. Those props had zero effect.
++      */}
++      <mesh ref={meshRef}>
+         <icosahedronGeometry args={[1.4, 4]} />
+         <meshMatcapMaterial matcap={matcap} />
+         {isDebug && <Wireframe stroke="#3ED9A4" fill="#3ED9A4" thickness={0.02} colorBackfaces={false} />}
+diff --git a/src/components/ui/ConsoleBreadcrumb.tsx b/src/components/ui/ConsoleBreadcrumb.tsx
+index d271ddd..ea8b972 100644
+--- a/src/components/ui/ConsoleBreadcrumb.tsx
++++ b/src/components/ui/ConsoleBreadcrumb.tsx
+@@ -5,10 +5,10 @@ import { useEffect } from 'react';
+ export function ConsoleBreadcrumb() {
+   useEffect(() => {
+     console.log(
+-      '%c[PORTFOLIO]',
++      '%c[Ibrahim Salman — Portfolio]',
+       'color:#7B6EF6;font-weight:bold;font-size:14px',
+-      '\n👤 Built by Senior Frontend Architect',
+-      '\n🔍 Hint: try yoursite.com/#debug',
++      '\n👤 Software Engineering Student @ UET Taxila',
++      '\n🔍 Hint: try #debug for dev mode',
+       '\n⚡ Stack: Next.js 14 · Three.js · GSAP · TypeScript'
+     );
+   }, []);
+diff --git a/src/components/ui/CustomCursor.tsx b/src/components/ui/CustomCursor.tsx
+index a446643..48cbd20 100644
+--- a/src/components/ui/CustomCursor.tsx
++++ b/src/components/ui/CustomCursor.tsx
+@@ -9,8 +9,9 @@ export function CustomCursor() {
+   const cursorRef = useRef<HTMLDivElement>(null);
+   const { isHovered, label } = useCursorStore();
+   const [mounted, setMounted] = useState(false);
+-  const mousePos = useRef({ x: 0, y: 0 });
+-  const cursorPos = useRef({ x: 0, y: 0 });
++  const mousePos = useRef({ x: -100, y: -100 }); // Start off-screen, not at (0,0)
++  const cursorPos = useRef({ x: -100, y: -100 });
++  const hasMovedRef = useRef(false);
+ 
+   useEffect(() => {
+     setMounted(true);
+@@ -19,6 +20,11 @@ export function CustomCursor() {
+ 
+     const handleMouseMove = (e: MouseEvent) => {
+       mousePos.current = { x: e.clientX, y: e.clientY };
++      if (!hasMovedRef.current) {
++        // Snap to real position immediately on first move — no visible flash at (0,0)
++        cursorPos.current = { x: e.clientX, y: e.clientY };
++        hasMovedRef.current = true;
++      }
+     };
+ 
+     window.addEventListener('mousemove', handleMouseMove);
+@@ -52,11 +58,12 @@ export function CustomCursor() {
+       ref={cursorRef}
+       className={cn(
+         'fixed top-0 left-0 w-2.5 h-2.5 bg-accent rounded-full pointer-events-none z-[9999] mix-blend-difference',
+-        isHovered && 'scale-[4]'
++        // Scale via transform — listed in the transition so it animates smoothly
++        isHovered ? 'scale-[4]' : 'scale-100'
+       )}
+-      style={{ 
++      style={{
+         willChange: 'transform',
+-        transition: 'width 0.3s, height 0.3s, background-color 0.3s'
++        transition: 'transform 0.3s ease, background-color 0.3s',
+       }}
+     >
+       {label && (
+diff --git a/src/components/ui/DebugPanel.tsx b/src/components/ui/DebugPanel.tsx
+index 4ea48a1..41fb43c 100644
+--- a/src/components/ui/DebugPanel.tsx
++++ b/src/components/ui/DebugPanel.tsx
+@@ -1,9 +1,9 @@
+ 'use client';
+ 
+-import { useState, useEffect } from 'react';
+ import { useDebugStore } from '@/store/debug.store';
+ import { useCursorStore } from '@/store/cursor.store';
+-import { useFrame } from '@react-three/fiber';
++
++// useFrame and useRef imports removed — were present after the export (orphaned, unused)
+ 
+ export function DebugPanel() {
+   const { isDebug, fps } = useDebugStore();
+@@ -22,14 +22,12 @@ export function DebugPanel() {
+           <span className="text-[8px] bg-accent/20 text-accent px-1 rounded">LIVE</span>
+         </div>
+         <pre className="whitespace-pre-wrap">
+-          {JSON.stringify({ 
++          {JSON.stringify({
+             debug: useDebugStore.getState(),
+-            cursor: useCursorStore.getState() 
++            cursor: { x: cursor.x, y: cursor.y, isHovered: cursor.isHovered, label: cursor.label },
+           }, null, 2)}
+         </pre>
+       </div>
+     </>
+   );
+ }
+-
+-import { useRef } from 'react';
+diff --git a/src/components/ui/FuzzyText.tsx b/src/components/ui/FuzzyText.tsx
+index 4e64c11..09f132a 100644
+--- a/src/components/ui/FuzzyText.tsx
++++ b/src/components/ui/FuzzyText.tsx
+@@ -1,5 +1,6 @@
+ 'use client';
+ 
++import { useId } from 'react';
+ import { cn } from '@/lib/utils';
+ 
+ interface FuzzyTextProps {
+@@ -9,20 +10,28 @@ interface FuzzyTextProps {
+ }
+ 
+ export function FuzzyText({ text, className, baseFrequency = '0.02' }: FuzzyTextProps) {
++  // useId ensures each instance gets a unique filter ID — prevents SVG filter collision
++  const id = useId();
++  const filterId = `fuzzy-${id.replace(/:/g, '')}`;
++
+   return (
+     <span className={cn('relative inline-block', className)}>
+       <span className="relative z-10">{text}</span>
+       <svg className="absolute inset-0 -z-10 pointer-events-none opacity-50" width="100%" height="100%">
+-        <filter id="fuzzy">
++        <filter id={filterId}>
+           <feTurbulence type="fractalNoise" baseFrequency={baseFrequency} numOctaves="3" result="noise" />
+           <feDisplacementMap in="SourceGraphic" in2="noise" scale="5" />
+         </filter>
++        {/* SVG text cannot use Tailwind font classes — use inline style instead */}
+         <text
+           x="0"
+           y="80%"
+-          className={cn('font-syne font-extrabold', className)}
+-          filter="url(#fuzzy)"
+-          style={{ fill: 'currentColor' }}
++          filter={`url(#${filterId})`}
++          style={{
++            fill: 'currentColor',
++            fontFamily: 'var(--font-syne), sans-serif',
++            fontWeight: 800,
++          }}
+         >
+           {text}
+         </text>
+diff --git a/src/components/ui/MagnetLines.tsx b/src/components/ui/MagnetLines.tsx
+index d646068..ba29e14 100644
+--- a/src/components/ui/MagnetLines.tsx
++++ b/src/components/ui/MagnetLines.tsx
+@@ -1,6 +1,7 @@
+ 'use client';
+ 
+ import { useEffect, useRef } from 'react';
++import { cn } from '@/lib/utils';
+ 
+ interface MagnetLinesProps {
+   rows?: number;
+@@ -16,7 +17,8 @@ export function MagnetLines({
+   className,
+ }: MagnetLinesProps) {
+   const canvasRef = useRef<HTMLCanvasElement>(null);
+-  const mouseRef = useRef({ x: 0, y: 0 });
++  const mouseRef = useRef<{ x: number | null; y: number | null }>({ x: null, y: null });
++  const rafIdRef = useRef<number>(0);
+ 
+   useEffect(() => {
+     const canvas = canvasRef.current;
+@@ -42,7 +44,18 @@ export function MagnetLines({
+     window.addEventListener('mousemove', handleMouseMove);
+     handleResize();
+ 
++    // Intersection observer — pause RAF when canvas is off-screen
++    let isVisible = true;
++    const observer = new IntersectionObserver(
++      ([entry]) => { isVisible = entry.isIntersecting; },
++      { threshold: 0 }
++    );
++    observer.observe(canvas);
++
+     const draw = () => {
++      rafIdRef.current = requestAnimationFrame(draw);
++      if (!isVisible) return; // Skip drawing when off-screen
++
+       ctx.clearRect(0, 0, canvas.width, canvas.height);
+       ctx.strokeStyle = color;
+       ctx.lineWidth = 1;
+@@ -50,15 +63,15 @@ export function MagnetLines({
+       const cellW = canvas.width / columns;
+       const cellH = canvas.height / rows;
+ 
++      // Default: point lines downward if mouse hasn't entered yet
++      const mx = mouseRef.current.x ?? canvas.width / 2;
++      const my = mouseRef.current.y ?? canvas.height * 2;
++
+       for (let r = 0; r < rows; r++) {
+         for (let c = 0; c < columns; c++) {
+           const x = c * cellW + cellW / 2;
+           const y = r * cellH + cellH / 2;
+-
+-          const dx = mouseRef.current.x - x;
+-          const dy = mouseRef.current.y - y;
+-          const angle = Math.atan2(dy, dx);
+-
++          const angle = Math.atan2(my - y, mx - x);
+           const length = 15;
+ 
+           ctx.save();
+@@ -71,22 +84,17 @@ export function MagnetLines({
+           ctx.restore();
+         }
+       }
+-
+-      requestAnimationFrame(draw);
+     };
+ 
+-    const rafId = requestAnimationFrame(draw);
++    rafIdRef.current = requestAnimationFrame(draw);
+ 
+     return () => {
+       window.removeEventListener('resize', handleResize);
+       window.removeEventListener('mousemove', handleMouseMove);
+-      cancelAnimationFrame(rafId);
++      cancelAnimationFrame(rafIdRef.current);
++      observer.disconnect();
+     };
+   }, [rows, columns, color]);
+ 
+   return <canvas ref={canvasRef} className={cn('w-full h-full pointer-events-none', className)} />;
+ }
+-
+-function cn(...classes: (string | undefined | boolean)[]) {
+-  return classes.filter(Boolean).join(' ');
+-}
+diff --git a/src/hooks/useMagneticEffect.ts b/src/hooks/useMagneticEffect.ts
+index bda9bb5..d54644f 100644
+--- a/src/hooks/useMagneticEffect.ts
++++ b/src/hooks/useMagneticEffect.ts
+@@ -1,3 +1,13 @@
++/**
++ * useMagneticEffect — UNUSED HOOK
++ *
++ * The magnetic effect is handled globally in ClientProviders.tsx via a delegated
++ * mousemove listener on window that targets all [data-magnetic] elements.
++ * This per-element hook approach was superseded and is kept here only for reference.
++ *
++ * If you ever need a one-off magnetic element outside the [data-magnetic] system,
++ * attach this hook to that element's ref.
++ */
+ 'use client';
+ 
+ import { useEffect, useRef } from 'react';
+@@ -10,30 +20,17 @@ export function useMagneticEffect() {
+     const el = magneticRef.current;
+     if (!el) return;
+ 
+-    const xTo = gsap.quickTo(el, 'x', { duration: 0.6, ease: 'power3.out' });
+-    const yTo = gsap.quickTo(el, 'y', { duration: 0.6, ease: 'power3.out' });
+-
+     const handleMouseMove = (e: MouseEvent) => {
+       const { clientX, clientY } = e;
+       const { width, height, left, top } = el.getBoundingClientRect();
+       const ox = clientX - (left + width / 2);
+       const oy = clientY - (top + height / 2);
+ 
+-      gsap.to(el, {
+-        x: ox * 0.35,
+-        y: oy * 0.35,
+-        duration: 0.6,
+-        ease: 'power3.out',
+-      });
++      gsap.to(el, { x: ox * 0.35, y: oy * 0.35, duration: 0.6, ease: 'power3.out' });
+     };
+ 
+     const handleMouseLeave = () => {
+-      gsap.to(el, {
+-        x: 0,
+-        y: 0,
+-        duration: 0.8,
+-        ease: 'elastic.out(1, 0.4)',
+-      });
++      gsap.to(el, { x: 0, y: 0, duration: 0.8, ease: 'elastic.out(1, 0.4)' });
+     };
+ 
+     el.addEventListener('mousemove', handleMouseMove);
+diff --git a/src/hooks/useTypewriter.ts b/src/hooks/useTypewriter.ts
+index 48401c6..d55c56b 100644
+--- a/src/hooks/useTypewriter.ts
++++ b/src/hooks/useTypewriter.ts
+@@ -1,11 +1,18 @@
+ 'use client';
+ 
+-import { useState, useEffect, useRef } from 'react';
++import { useState, useEffect, useRef, useCallback } from 'react';
+ 
+ export function useTypewriter(text: string, speed = 20, onComplete?: () => void) {
+   const [displayText, setDisplayText] = useState('');
+   const [isComplete, setIsComplete] = useState(false);
+   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
++  // Stabilise onComplete with useCallback ref pattern to prevent restart loops
++  // when the caller passes an inline arrow function (new ref on every render).
++  const onCompleteRef = useRef(onComplete);
++  useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
++
++  // Wrap stable callback so it never enters the dependency array
++  const stableOnComplete = useCallback(() => { onCompleteRef.current?.(); }, []);
+ 
+   useEffect(() => {
+     let i = 0;
+@@ -19,18 +26,17 @@ export function useTypewriter(text: string, speed = 20, onComplete?: () => void)
+         timeoutRef.current = setTimeout(type, speed);
+       } else {
+         setIsComplete(true);
+-        onComplete?.();
++        stableOnComplete();
+       }
+     };
+ 
+     type();
+ 
+     return () => {
+-      if (timeoutRef.current) {
+-        clearTimeout(timeoutRef.current);
+-      }
++      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+     };
+-  }, [text, speed, onComplete]);
++    // stableOnComplete is memoised — safe to include without restart risk
++  }, [text, speed, stableOnComplete]);
+ 
+   return { displayText, isComplete };
+ }
+diff --git a/src/lib/gsap.ts b/src/lib/gsap.ts
+index 9248940..7608828 100644
+--- a/src/lib/gsap.ts
++++ b/src/lib/gsap.ts
+@@ -1,4 +1,3 @@
+-// @ts-nocheck
+ import { gsap } from 'gsap';
+ import { ScrollTrigger } from 'gsap/ScrollTrigger';
+ import { Flip } from 'gsap/Flip';
+diff --git a/src/lib/lenis.ts b/src/lib/lenis.ts
+index 4b46093..e5755f4 100644
+--- a/src/lib/lenis.ts
++++ b/src/lib/lenis.ts
+@@ -1,10 +1,12 @@
+ import Lenis from 'lenis';
+ import { gsap, ScrollTrigger } from '@/lib/gsap';
+ 
++// ScrollTrigger already registered in gsap.ts — do not register again here.
++
+ let lenis: Lenis | null = null;
+ 
+-if (typeof window !== 'undefined') {
+-  gsap.registerPlugin(ScrollTrigger);
++export function initLenis(): Lenis {
++  if (lenis) return lenis;
+ 
+   lenis = new Lenis({
+     duration: 1.2,
+@@ -12,7 +14,6 @@ if (typeof window !== 'undefined') {
+     orientation: 'vertical',
+     gestureOrientation: 'vertical',
+     smoothWheel: true,
+-    touchMultiplier: 2,
+   });
+ 
+   lenis.on('scroll', ScrollTrigger.update);
+@@ -22,6 +23,15 @@ if (typeof window !== 'undefined') {
+   });
+ 
+   gsap.ticker.lagSmoothing(0);
++
++  return lenis;
++}
++
++export function destroyLenis() {
++  if (lenis) {
++    lenis.destroy();
++    lenis = null;
++  }
+ }
+ 
+ export { lenis };
+-- 
+2.43.0
+

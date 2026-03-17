@@ -1,0 +1,10 @@
+Preparing deployment for: C:\Users\hafiz\OneDrive - University of Engineering and Technology Taxila\Desktop\portfolio2
+Detected framework: nextjs
+Creating deployment package... C:\Users\hafiz\AppData\Local\Temp\project.tgz
+Deploying to Vercel...
+Deployment Failed: 404 The page could not be found
+
+NOT_FOUND
+
+bom1::95p9l-1773654568858-cecdb7240127
+
